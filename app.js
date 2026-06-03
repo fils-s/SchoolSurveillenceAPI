@@ -15,6 +15,24 @@ app.use(express.json());
 import usersRoutes from "./routes/users.routes.js"
 app.use("/users", usersRoutes)
 
+// centralized error handler
+app.use((err, req, res, next) => {
+    const status = err.status || 500;
+    const payload = {
+        message: err.message || "Internal Server Error"
+    };
+
+    if (err.errors) {
+        payload.errors = err.errors;
+    }
+
+    if (err.accessToken !== undefined) {
+        payload.accessToken = err.accessToken;
+    }
+
+    res.status(status).json(payload);
+});
+
 app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
 });
