@@ -13,6 +13,9 @@ app.use(express.json());
 
 // routes
 import usersRoutes from "./routes/users.routes.js"
+import categoriesRoutes from "./routes/categories.routes.js"
+
+app.use("/categories", categoriesRoutes)
 app.use("/users", usersRoutes)
 
 // centralized error handler
