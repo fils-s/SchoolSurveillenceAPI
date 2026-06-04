@@ -23,7 +23,7 @@ export const createCategory = async(req, res, next)=>{
             ]))
         }
 
-        // validade character length 
+        // validate character length 
         if(incCategoryDesc.length < 3){
             return next(validationError([{ path: "incCategoryDesc", message: "Category must be at least 3 characters long" }]))
         }

@@ -171,7 +171,7 @@ export const patchMe = async(req, res, next)=>{
             return next(validationError([{ path: "password", message: "Password must be a string." }]))
         }
 
-        // validade character length
+        // validate character length
         if(password.length < 10){
             return next(validationError([{ path: "password", message: "Password must be at least 10 characters long" }]))
         }
