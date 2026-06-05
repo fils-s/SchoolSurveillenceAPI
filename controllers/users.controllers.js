@@ -21,7 +21,7 @@ export const register = async(req, res, next)=>{
             ]))
         }
 
-        // validade character length 
+        // validate character length 
         if(username.length < 4){
             return next(validationError([{ path: "username", message: "Username must be at least 4 characters long" }]))
         }
@@ -53,7 +53,12 @@ export const register = async(req, res, next)=>{
 
         const hashedPassword = await bcrypt.hash(password, 10); //hash user’s password
 
-        const newUser = await User.create({ email: email.toLowerCase(), password: hashedPassword, username, userType: userType.toLowerCase() });
+        const newUser = await User.create({ 
+            email: email.toLowerCase(),
+            password: hashedPassword, 
+            username, 
+            userType: userType.toLowerCase() 
+        });
         res.status(201).json({ 
             id: newUser.id,
             links: {

@@ -39,7 +39,7 @@ export const createCategory = async(req, res, next)=>{
             id: newCategory.id,
             incCategoryDesc: newCategory.incCategoryDesc,
             links: {
-                add_to_incidents: { href: "/incidents" }
+                add_to_incidents: { href: "/incidents", method:"POST" }
             }
         })
     } catch (error) {

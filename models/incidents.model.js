@@ -11,7 +11,7 @@ export default (sequelize, DataTypes) => sequelize.define("incidents", {
     validate: { len: { args: [2, 100], msg: "Building must be between 2 and 100 characters"}} 
   },
   coordinates: { type: DataTypes.STRING, allowNull: false,
-    validate: { len: { args: [4, 30], msg: "Coordinates must be between 4 and 30 characters"}} 
+    validate: { len: { args: [4, 50], msg: "Coordinates must be between 4 and 50 characters"}} 
   },
   priority: { type: DataTypes.ENUM("low", "medium", "high"), allowNull: false },
   status: { type: DataTypes.ENUM("in_analysis", "unsolved", "in_resolution", "solved", "rejected"), allowNull: false },
