@@ -4,7 +4,7 @@ export default (sequelize, DataTypes) => sequelize.define("users", {
   username: { type: DataTypes.STRING, allowNull: false,
     validate: { len: { args: [4, 100], msg: "Username must be between 4 and 100 characters"}} 
   },
-  email: { type: DataTypes.STRING, allowNull: false, unique: true,
+  email: { type: DataTypes.STRING, allowNull: false,
     validate: { isEmail: true } // validate it is a valid email format
   },
   password: { type: DataTypes.STRING, allowNull: false,
@@ -15,5 +15,5 @@ export default (sequelize, DataTypes) => sequelize.define("users", {
   isBanned: { type: DataTypes.BOOLEAN, defaultValue: false }
 
 }, {
-  timestamps: false 
+  timestamps: false
 });

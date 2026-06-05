@@ -167,7 +167,6 @@ export const getIncidents = async(req, res, next)=>{
             ...incident.toJSON(),
             links: {
                 self: { href: `/incidents/${incident.id}` },
-                user: { href: `/users/${incident.userId}` },
                 comments: { href: `/incidents/${incident.id}/comments` }
             }
         }));
@@ -191,3 +190,46 @@ export const getIncidents = async(req, res, next)=>{
         next(genericError("Something went wrong. Please try again later"));
     }
 }
+
+export const getIncidentById = async(req, res, next)=>{
+    try{
+        const { id} = req.params
+        if(isNaN(parseInt(id))){
+            return next(validationError([{ path: "id", message: "Incident ID must be a number." }]));
+        }
+
+        // validate if the incident exists
+        const incident = await Incident.findByPk(id)
+        if (!incident) {
+            return next(notFoundError("Incident", id))
+        }
+
+        // fetching the status, photo(s) and categor(ies) of the incident
+        const [statuses, photos, categories] = await Promise.all([
+            IncidentStatus.findAll({ where: { incidentId: id }, order: [['createdAt', 'ASC']] }),
+            IncidentPhoto.findAll({ where: { incidentId: id } }),
+            IncCategories.findAll({ where: { incidentId: id } })
+        ]);
+
+        res.status(200).json({
+            ...incident.toJSON(),
+            status: statuses.length ? statuses[statuses.length - 1].status : incident.status,
+            photo: photos.map(p => p.photo),
+            incCategories: categories.map(c => c.incCategoryId),
+            links: {
+                comments: { href: `/incidents/${incident.id}/comments` }
+            }
+        });
+
+
+    } catch(error){
+        next(genericError("Something went wrong. Please try again later"));
+    }
+}
+
+
+// to-do tomorrow:
+// - add a query filter for priority in getIncidents
+// - improve author query param, letting the user filter himself by saying "author=me"
+// - do the patch and delete /incidents pretty quickly zingas zingas
+// - maybe start working on the /incidents/statistics function

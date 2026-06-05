@@ -52,6 +52,11 @@ export const deleteCategory = async(req, res, next)=>{
     try{
         const { id } = req.params
 
+        // validate if id is a number
+        if(isNaN(parseInt(id))){
+            return next(validationError([{ path: "id", message: "Incident ID must be a number." }]));
+        }
+
         // validate if user authenticated is an admin
         if (req.user.userType !== "admin") { 
             return next(forbiddenError("You are not allowed to do this request"))
