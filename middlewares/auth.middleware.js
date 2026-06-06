@@ -26,3 +26,19 @@ export const validateToken = (req, res, next) => {
         }
     }
 }
+
+export const parseToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return next();
+
+  const [scheme, token] = authHeader.split(' ');
+  if (scheme !== 'Bearer' || !token) return next();
+
+  try {
+    const decoded = jwt.verify(token, process.env.SECRET);
+    req.user = decoded;
+  } catch (error) {
+    // ignore invalid token and continue as anonymous
+  }
+  next();
+}

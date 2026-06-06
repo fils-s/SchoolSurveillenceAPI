@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User } from '../models/db.config.js'
-import { missingFieldsValidationError, notFoundError, genericError, validationError, conflictError, forbiddenError} from "../utils/error.utils.js";
+import { missingFieldsValidationError, notFoundError, genericError, validationError, conflictError, forbiddenError, unauthorizedError} from "../utils/error.utils.js";
 
 export const createIncident = async(req, res, next)=>{
     try{
@@ -112,7 +112,7 @@ export const createIncident = async(req, res, next)=>{
 export const getIncidents = async(req, res, next)=>{
     try{
         // query params
-        const {page, limit, sort, author, status} = req.query
+        const {page, limit, sort, author, status, priority} = req.query
 
         // validate query parameters
         // pagination
@@ -130,6 +130,7 @@ export const getIncidents = async(req, res, next)=>{
         let whereClause = {};
         const authorFilter = author;
         const statusFilter = status;
+        const priorityFilter = priority
 
         if(authorFilter !== undefined && typeof authorFilter !== "string"){
             return next(validationError([{ path: "author", message: "Author must be a string." }]));
@@ -139,21 +140,44 @@ export const getIncidents = async(req, res, next)=>{
             return next(validationError([{ path: "status", message: "Status must be a string." }]));
         }
 
+        if (priorityFilter !== undefined && typeof priorityFilter !== "string") {
+            return next(validationError([{ path: "priority", message: "Priority must be a string." }]));
+        }
+
         const validStatuses = ["in_analysis", "unsolved", "in_resolution", "solved", "rejected"]
         if (statusFilter && !validStatuses.includes(statusFilter.toLowerCase())) {
             return next(validationError([{ path: "status", message: "Invalid status value." }]));
+        }
+
+        const validPriorities = ["low", "medium", "high"]
+        if (priorityFilter && !validPriorities.includes(priorityFilter.toLowerCase())) {
+            return next(validationError([{ path: "priority", message: "Invalid priority value." }]));
         }
 
         if (statusFilter) {
             whereClause.status = statusFilter.toLowerCase();
         }
 
+        if (priorityFilter) {
+            whereClause.priority = priorityFilter.toLowerCase();
+        }
+
         if(authorFilter){
-            const authorRecord = await User.findOne({ where: { username: authorFilter } });
-            if (!authorRecord) {
-                return next(validationError([{ path: "author", message: "This author was not found." }]));
+            // verify if the author filter is "me"
+            // BUT FIRST: verify if the user is authenticated at all
+            if (!req.user) {
+                return next(unauthorizedError("You must be authenticated to do this request."));
             }
-            whereClause.userId = authorRecord.id;
+            if(authorFilter === "me"){
+                whereClause.userId = req.user.id;
+            } else {
+                const authorRecord = await User.findOne({ where: { username: authorFilter } });
+                // verify if the author exists
+                if (!authorRecord) {
+                    return next(validationError([{ path: "author", message: "This author was not found." }]));
+                }
+                whereClause.userId = authorRecord.id;
+            }
         }
 
         const incidents = await Incident.findAndCountAll({
@@ -171,7 +195,12 @@ export const getIncidents = async(req, res, next)=>{
             }
         }));
 
-        const queryParams = `?page=${pageNumber}&limit=${limitNumber}${sort ? `&sort=${sort}` : ''}${authorFilter ? `&author=${encodeURIComponent(authorFilter)}` : ''}${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}`;
+        const queryParams = `?page=${pageNumber}
+        &limit=${limitNumber}
+        ${sort ? `&sort=${sort}` : ''}
+        ${authorFilter ? `&author=${encodeURIComponent(authorFilter)}` : ''}
+        ${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}
+        ${priorityFilter ? `&priority=${encodeURIComponent(priorityFilter)}` : ''}`;
 
         res.status(200).json({
             data: incidentsList,
@@ -229,7 +258,6 @@ export const getIncidentById = async(req, res, next)=>{
 
 
 // to-do tomorrow:
-// - add a query filter for priority in getIncidents
 // - improve author query param, letting the user filter himself by saying "author=me"
 // - do the patch and delete /incidents pretty quickly zingas zingas
 // - maybe start working on the /incidents/statistics function
