@@ -99,6 +99,9 @@ export const createIncident = async(req, res, next)=>{
             registrationDate: newIncident.registrationDate,
             building: newIncident.building,
             priority: newIncident.priority,
+            status: newIncident.status,
+            photo: photo,
+            incCategoryId: incCategoryId,
             links: {
                 self: { href: `/incidents/${newIncident.id}`, method: "GET" }
             }
@@ -256,8 +259,187 @@ export const getIncidentById = async(req, res, next)=>{
     }
 }
 
+export const deleteIncident = async(req,res, next)=>{
+    try{
+        const { id } = req.params
+
+        // validate if id is a number
+        if(isNaN(parseInt(id))){
+            return next(validationError([{ path: "id", message: "Incident ID must be a number." }]));
+        }
+
+        // validate if user authenticated is an admin or the creator of the incident
+        if (req.user.userType !== "admin" && req.user.id !== incident.userId) { 
+            return next(forbiddenError("You are not allowed to do this request"))
+        }
+
+        // validate if the incident exists
+        const incident = await Incident.findByPk(id)
+        if (!incident) {
+            return next(notFoundError("Incident", id))
+        }
+
+        await incident.destroy()
+        // destroy also the associated photos, incCategories and status records
+        await IncidentPhoto.destroy({ where: { incidentId: id } })
+        await IncCategories.destroy({ where: { incidentId: id } })
+        await IncidentStatus.destroy({ where: { incidentId: id } })
+        res.status(200).json({ message: "Incident deleted successfully." })
+    } catch (error) {
+        next(genericError("Something went wrong. Please try again later"))
+    }
+}
+
+export const patchIncidentById = async(req, res, next)=>{
+    try{
+        const { id } = req.params
+        const { title, description, building, coordinates, priority, status, photo, incCategoryId } = req.body
+        const incident = await Incident.findByPk(id)
+
+        // validate if id is a number
+        if(isNaN(parseInt(id))){
+            return next(validationError([{ path: "id", message: "Incident ID must be a number." }]));
+        }
+
+        // validate if the incident exists
+        if (!incident) {
+            return next(notFoundError("Incident", id))
+        }
+
+        // validate if user authenticated is an admin, a janitor, or the creator of the incident 
+        if (req.user.userType !== "admin" && req.user.userType !== "janitor" && req.user.id !== incident.userId) { 
+            return next(forbiddenError("You are not allowed to do this request"))
+        }
+
+        //validate if at least one field was provided
+        if (title === undefined 
+            && description === undefined 
+            && building === undefined && 
+            coordinates === undefined && 
+            priority === undefined && 
+            status === undefined && 
+            photo === undefined && 
+            incCategoryId === undefined) {
+            return next(missingFieldsValidationError())
+         }
+
+        // validate if the formats are correct
+        const validationErrors = []
+
+        if (title !== undefined && typeof title !== "string") {
+            validationErrors.push({ path: "title", message: "Title must be a string." })
+        }
+        if (description !== undefined && typeof description !== "string") {
+            validationErrors.push({ path: "description", message: "Description must be a string." })
+        }
+        if (building !== undefined && typeof building !== "string") {
+            validationErrors.push({ path: "building", message: "Building must be a string." })
+        }
+        if (priority !== undefined && typeof priority !== "string") {
+            validationErrors.push({ path: "priority", message: "Priority must be a string." })
+        }
+        if (status !== undefined && typeof status !== "string") {
+            validationErrors.push({ path: "status", message: "Status must be a string." })
+        }
+        if (coordinates !== undefined && typeof coordinates !== "string") {
+            validationErrors.push({ path: "coordinates", message: "Coordinates must be a string." })
+        }
+        if (Array.isArray(photo) && !photo.every(p => typeof p === "string")) {
+            validationErrors.push({ path: "photo", message: "Photo must be a string." })
+        }
+        if (incCategoryId !== undefined && (!Array.isArray(incCategoryId) || incCategoryId.length === 0)) {
+            validationErrors.push({ path: "incCategoryId", message: "You must provide at least one category." })
+        }
+
+        if (validationErrors.length) {
+            return next(validationError(validationErrors))
+        }
+
+        // validate character length 
+        if (title !== undefined && (title.length < 3 || title.length > 50)) {
+            return next(validationError([{ path: "title", message: "Title must be between 3 and 50 characters long" }]))
+        }
+        if (building !== undefined && (building.length < 2 || building.length > 100)) {
+            return next(validationError([{ path: "building", message: "Building must be between 2 and 100 characters long" }]))
+        }
+        if (coordinates !== undefined && (coordinates.length < 4 || coordinates.length > 50)) {
+            return next(validationError([{ path: "coordinates", message: "Coordinates must be between 4 and 50 characters long" }]))
+        }
+
+        // validate priority and status value
+        const validPriorities = ["low", "medium", "high"]
+        if (priority && !validPriorities.includes(priority.toLowerCase())) {
+            return next(validationError([{ path: "priority", message: "Invalid priority value. Priority must be either low, medium, or high." }]))
+        }
+
+        const validStatuses = ["in_analysis", "unsolved", "in_resolution", "solved", "rejected"]
+        if (status && !validStatuses.includes(status.toLowerCase())) {
+            return next(validationError([{ path: "status", message: "Invalid status value." }]));
+        }
+
+        // admins and janitors can only patch the status of the incident
+        // the creator can patch everything else but the status
+        if(status && (req.user.userType === "janitor" || req.user.userType === "admin")){
+            if (status !== undefined) incident.status = status
+            await incident.save()
+
+            res.status(200).json({
+                id: incident.id,
+                status: incident.status,
+                links: {
+                    self: { href: `/incidents/${incident.id}`, method: "GET" }
+                }
+            })
+        }
+        else if (req.user.id === incident.userId){
+            if (title !== undefined) incident.title = title
+            if (description !== undefined) incident.description = description
+            if (building !== undefined) incident.building = building
+            if (coordinates !== undefined) incident.coordinates = coordinates
+            if (priority !== undefined) incident.priority = priority
+            if (incCategoryId !== undefined) {
+                await IncCategories.destroy({ where: { incidentId: id } })
+                for (const categoryId of incCategoryId) {
+                    await IncCategories.create({
+                        incidentId: id,
+                        incCategoryId: categoryId
+                    })
+                }
+            }
+            if (photo !== undefined) {
+                await IncidentPhoto.destroy({ where: { incidentId: id } })
+                for (const p of photo) {
+                    await IncidentPhoto.create({
+                        photo: p,
+                        incidentId: incident.id
+                    })
+                }
+            }
+
+            await incident.save()
+
+            res.status(200).json({
+                id: incident.id,
+                title: incident.title,
+                registrationDate: incident.registrationDate,
+                building: incident.building,
+                priority: incident.priority,
+                photo: photo,
+                incCategoryId: incCategoryId,
+                links: {
+                    self: { href: `/incidents/${incident.id}`, method: "GET" }
+                }
+            })
+        }
+        
+            
+
+    } catch(error){
+        next(genericError("Something went wrong. Please try again later"))
+    }
+}
+
 
 // to-do tomorrow:
-// - improve author query param, letting the user filter himself by saying "author=me"
 // - do the patch and delete /incidents pretty quickly zingas zingas
 // - maybe start working on the /incidents/statistics function

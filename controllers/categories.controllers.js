@@ -69,10 +69,10 @@ export const deleteCategory = async(req, res, next)=>{
         }
 
         // validate if category is associated with any incident
-        /* const associatedIncidents = await category.getIncidents()
+        const associatedIncidents = await category.getIncidents()
         if (associatedIncidents.length > 0) {
             return next(conflictError(`Category \`${category.incCategoryDesc}\` cannot be deleted because it is associated with existing incidents.`))
-        } */
+        }
 
         await category.destroy()
         res.status(200).json({ message: "Category deleted successfully." })
