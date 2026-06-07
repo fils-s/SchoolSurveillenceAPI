@@ -203,7 +203,7 @@ export const getAllUsers = async(req, res, next)=>{
             return next(forbiddenError("You're not allowed to perform this request."))
         }
 
-        // validate if user authenticated is a janitor
+        // validate if user authenticated is an admin
         if (req.user.userType !== "admin") { 
             return next(forbiddenError("You are not allowed to do this request"))
         }

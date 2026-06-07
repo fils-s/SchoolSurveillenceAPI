@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User, Comment, Treatment } from '../models/db.config.js'
+import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User, Comment, Treatment, Category } from '../models/db.config.js'
 import { missingFieldsValidationError, notFoundError, genericError, validationError, conflictError, forbiddenError, unauthorizedError} from "../utils/error.utils.js";
 
 export const createIncident = async(req, res, next)=>{
@@ -462,8 +462,92 @@ export const patchIncidentById = async(req, res, next)=>{
     }
 }
 
+export const getStatistics = async(req, res, next)=>{
+    try {
+        const { metric = "incidents_by_category" } = req.query
+
+        // validate if the user is not banned
+        if(req.user.isBanned){
+            return next(forbiddenError("You're not allowed to perform this request."))
+        }
+
+        // validate if user authenticated is an admin
+        if (req.user.userType !== "admin") {
+            return next(forbiddenError("You're not allowed to perform this request"))
+        }
+
+        const validMetrics = ["avg_solving_time", "most_common_building", "incidents_by_category", "incidents_by_status"]
+        const selectedMetric = metric
+
+        if (!validMetrics.includes(selectedMetric)) {
+            return next(validationError([{ path: "metric", message: "Invalid metric. Pick one or more of these: avg_solving_time, most_common_building, incidents_by_category, incidents_by_status." }]))
+        }
+
+        // incidents_by_category
+        if (selectedMetric === "incidents_by_category") {
+            let order = [[Category.sequelize.literal('count'), 'DESC']]
+
+            const categories = await Category.findAll({
+                attributes: [
+                    'incCategoryDesc',
+                    [Category.sequelize.literal('COUNT(`incidents`.`id`)'), 'count']
+                ],
+                include: [{
+                    model: Incident,
+                    attributes: [],
+                    through: { attributes: [] },
+                    required: false
+                }],
+                group: ['categories.id', 'categories.incCategoryDesc'],
+                order
+            })
+            
+            const incidentsByCategory = {}
+            categories.forEach(category => {
+                incidentsByCategory[category.incCategoryDesc] = parseInt(category.get('count'), 10)
+            })
+
+            return res.status(200).json({
+                metric: "incidents_by_category",
+                data: incidentsByCategory
+            })
+        }
+
+        // incidents_by_status
+        if (selectedMetric === "incidents_by_status") {
+            let order = [[IncidentStatus.sequelize.literal('count'), 'DESC']]
+
+            const statuses = await IncidentStatus.findAll({
+                attributes: [
+                    'status',
+                    [IncidentStatus.sequelize.literal('COUNT(*)'), 'count']
+                ],
+                group: ['status'],
+                order
+            })
+            
+            const incidentsByStatus = {}
+            statuses.forEach(status => {
+                incidentsByStatus[status.status] = parseInt(status.get('count'), 10)
+            })
+
+            return res.status(200).json({
+                metric: "incidents_by_status",
+                data: incidentsByStatus
+            })
+        }
+
+        return res.status(200).json({
+            metric: selectedMetric,
+            data: {}
+        })
+    } catch (error) {
+        console.error(error)
+        next(genericError("Something went wrong. Please try again later"))
+    }
+}
+
 
 // to-do tomorrow:
 // - make at the very least 2 of the statistics query params
-// - get, post and patch treatments
 // - finish up the documentation with examples for both good and bad requests
