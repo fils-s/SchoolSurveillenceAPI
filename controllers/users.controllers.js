@@ -62,7 +62,7 @@ export const register = async(req, res, next)=>{
         res.status(201).json({ 
             id: newUser.id,
             links: {
-                login: { href: "/users/login" }
+                login: { href: "/users/login", method: "POST" }
             }
         });
     } catch (error) {

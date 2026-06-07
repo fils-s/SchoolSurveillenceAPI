@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User, Comment } from '../models/db.config.js'
+import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User, Comment, Treatment } from '../models/db.config.js'
 import { missingFieldsValidationError, notFoundError, genericError, validationError, conflictError, forbiddenError, unauthorizedError} from "../utils/error.utils.js";
 
 export const createIncident = async(req, res, next)=>{
@@ -292,10 +292,12 @@ export const deleteIncident = async(req,res, next)=>{
         }
 
         await incident.destroy()
-        // destroy also the associated photos, incCategories and status records
+        // destroy also the associated photos, treatments, comments, incCategories and status records
         await IncidentPhoto.destroy({ where: { incidentId: id } })
         await IncCategories.destroy({ where: { incidentId: id } })
         await IncidentStatus.destroy({ where: { incidentId: id } })
+        await Comment.destroy({ where: { incidentId: id } })
+        await Treatment.destroy({ where: { incidentId: id } })
         res.status(200).json({ message: "Incident deleted successfully." })
     } catch (error) {
         next(genericError("Something went wrong. Please try again later"))
@@ -459,7 +461,6 @@ export const patchIncidentById = async(req, res, next)=>{
 
 // to-do tomorrow:
 // - make at the very least 2 of the statistics query params
-// - get, post and delete comments zingas zingas
 // - get, post and patch treatments
 // - get users lol its still missing
 // - finish up the documentation with examples for both good and bad requests

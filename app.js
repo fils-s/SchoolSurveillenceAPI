@@ -16,10 +16,11 @@ import usersRoutes from "./routes/users.routes.js"
 import categoriesRoutes from "./routes/categories.routes.js"
 import incidentRoutes from "./routes/incidents.routes.js"
 import commentRoutes from "./routes/comments.routes.js"
+import treatmentRoutes from "./routes/treatments.routes.js";
 
 app.use("/categories", categoriesRoutes)
 app.use("/users", usersRoutes)
-app.use("/incidents", incidentRoutes, commentRoutes)
+app.use("/incidents", incidentRoutes, commentRoutes, treatmentRoutes)
 
 // centralized error handler
 app.use((err, req, res, next) => {
