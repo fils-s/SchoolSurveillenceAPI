@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User } from '../models/db.config.js'
+import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User, Comment } from '../models/db.config.js'
 import { missingFieldsValidationError, notFoundError, genericError, validationError, conflictError, forbiddenError, unauthorizedError} from "../utils/error.utils.js";
 
 export const createIncident = async(req, res, next)=>{
@@ -10,6 +10,11 @@ export const createIncident = async(req, res, next)=>{
 
         if(!title || !building || !coordinates || !priority){
             return next(missingFieldsValidationError())
+        }
+
+        // validate if the user is not banned
+        if(req.user.isBanned){
+            return next(forbiddenError("You're not allowed to perform this request."))
         }
 
         // validate if the formats are correct
@@ -248,6 +253,7 @@ export const getIncidentById = async(req, res, next)=>{
             status: statuses.length ? statuses[statuses.length - 1].status : incident.status,
             photo: photos.map(p => p.photo),
             incCategories: categories.map(c => c.incCategoryId),
+            noComments: await Comment.count({ where: { incidentId: id } }),
             links: {
                 comments: { href: `/incidents/${incident.id}/comments` }
             }
@@ -268,10 +274,16 @@ export const deleteIncident = async(req,res, next)=>{
             return next(validationError([{ path: "id", message: "Incident ID must be a number." }]));
         }
 
+        // validate if the user is not banned
+        if(req.user.isBanned){
+            return next(forbiddenError("You're not allowed to perform this request."))
+        }
+
         // validate if user authenticated is an admin or the creator of the incident
         if (req.user.userType !== "admin" && req.user.id !== incident.userId) { 
             return next(forbiddenError("You are not allowed to do this request"))
         }
+        
 
         // validate if the incident exists
         const incident = await Incident.findByPk(id)
@@ -304,6 +316,11 @@ export const patchIncidentById = async(req, res, next)=>{
         // validate if the incident exists
         if (!incident) {
             return next(notFoundError("Incident", id))
+        }
+
+        // validate if the user is not banned
+        if(req.user.isBanned){
+            return next(forbiddenError("You're not allowed to perform this request."))
         }
 
         // validate if user authenticated is an admin, a janitor, or the creator of the incident 
@@ -441,5 +458,8 @@ export const patchIncidentById = async(req, res, next)=>{
 
 
 // to-do tomorrow:
-// - do the patch and delete /incidents pretty quickly zingas zingas
-// - maybe start working on the /incidents/statistics function
+// - make at the very least 2 of the statistics query params
+// - get, post and delete comments zingas zingas
+// - get, post and patch treatments
+// - get users lol its still missing
+// - finish up the documentation with examples for both good and bad requests

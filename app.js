@@ -15,10 +15,11 @@ app.use(express.json());
 import usersRoutes from "./routes/users.routes.js"
 import categoriesRoutes from "./routes/categories.routes.js"
 import incidentRoutes from "./routes/incidents.routes.js"
+import commentRoutes from "./routes/comments.routes.js"
 
 app.use("/categories", categoriesRoutes)
 app.use("/users", usersRoutes)
-app.use("/incidents", incidentRoutes)
+app.use("/incidents", incidentRoutes, commentRoutes)
 
 // centralized error handler
 app.use((err, req, res, next) => {
