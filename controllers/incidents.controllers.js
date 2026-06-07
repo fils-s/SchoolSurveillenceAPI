@@ -476,11 +476,11 @@ export const getStatistics = async(req, res, next)=>{
             return next(forbiddenError("You're not allowed to perform this request"))
         }
 
-        const validMetrics = ["avg_solving_time", "most_common_building", "incidents_by_category", "incidents_by_status"]
+        const validMetrics = ["incidents_by_category", "incidents_by_status"]
         const selectedMetric = metric
 
         if (!validMetrics.includes(selectedMetric)) {
-            return next(validationError([{ path: "metric", message: "Invalid metric. Pick one or more of these: avg_solving_time, most_common_building, incidents_by_category, incidents_by_status." }]))
+            return next(validationError([{ path: "metric", message: "Invalid metric. Pick one or more of these: incidents_by_category, incidents_by_status." }]))
         }
 
         // incidents_by_category
