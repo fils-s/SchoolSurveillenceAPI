@@ -203,12 +203,16 @@ export const getIncidents = async(req, res, next)=>{
             }
         }));
 
-        const queryParams = `?page=${pageNumber}
-        &limit=${limitNumber}
-        ${sort ? `&sort=${sort}` : ''}
-        ${authorFilter ? `&author=${encodeURIComponent(authorFilter)}` : ''}
-        ${statusFilter ? `&status=${encodeURIComponent(statusFilter)}` : ''}
-        ${priorityFilter ? `&priority=${encodeURIComponent(priorityFilter)}` : ''}`;
+        //construction of the response
+        const queryParts = [`page=${pageNumber}`, `limit=${limitNumber}`];
+        if (sort) queryParts.push(`sort=${encodeURIComponent(sort)}`);
+        if (authorFilter !== undefined) queryParts.push(`userType=${encodeURIComponent(authorFilter)}`);
+        if (statusFilter !== undefined) queryParts.push(`approval=${encodeURIComponent(statusFilter)}`);
+        if (priorityFilter !== undefined) queryParts.push(`isBanned=${encodeURIComponent(priorityFilter)}`);
+
+        const queryParams = `?${queryParts.join('&')}`;
+        const nextQuery = `?${queryParts.map(part => part.replace(`page=${pageNumber}`, `page=${pageNumber + 1}`)).join('&')}`;
+        const prevQuery = `?${queryParts.map(part => part.replace(`page=${pageNumber}`, `page=${Math.max(pageNumber - 1, 1)}`)).join('&')}`;
 
         res.status(200).json({
             data: incidentsList,
@@ -462,5 +466,4 @@ export const patchIncidentById = async(req, res, next)=>{
 // to-do tomorrow:
 // - make at the very least 2 of the statistics query params
 // - get, post and patch treatments
-// - get users lol its still missing
 // - finish up the documentation with examples for both good and bad requests

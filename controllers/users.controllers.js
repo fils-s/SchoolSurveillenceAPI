@@ -193,4 +193,110 @@ export const patchMe = async(req, res, next)=>{
     }
 }
 
-// to do tomorrow:
+export const getAllUsers = async(req, res, next)=>{
+    try {
+        // query params
+        const {page, limit, sort, userType, approval, isBanned} = req.query
+
+        // validate if the user is not banned
+        if(req.user.isBanned){
+            return next(forbiddenError("You're not allowed to perform this request."))
+        }
+
+        // validate if user authenticated is a janitor
+        if (req.user.userType !== "admin") { 
+            return next(forbiddenError("You are not allowed to do this request"))
+        }
+
+        // validate query parameters
+        // pagination
+        const pageNumber = parseInt(page) || 1;
+        const limitNumber = parseInt(limit) || 5;
+        const offset = (pageNumber - 1) * limitNumber;
+
+        // sort
+        let order = [['id', 'DESC']];
+        if (sort) {
+            const [fieldRaw, direction] = sort.split(':');
+            const field = fieldRaw === 'userId' || fieldRaw === 'userid' ? 'id' : fieldRaw;
+            const sortDir = direction ? direction.toUpperCase() : null;
+            const allowedFields = ['id'];
+
+            if (!allowedFields.includes(field) || !['ASC', 'DESC'].includes(sortDir)) {
+                return next(validationError([{ path: "sort", message: "Only userId sorting is allowed. Direction must be asc (ascending) or desc (descending)." }]));
+            }
+
+            order = [[field, sortDir]];
+        }
+
+        // where clauses
+        let whereClause = {};
+        const userTypeFilter = userType;
+        const approvalFilter = approval;
+        const isBannedFilter = isBanned
+
+        if(userTypeFilter !== undefined && typeof userTypeFilter !== "string"){
+            return next(validationError([{ path: "userType", message: "User type must be a string." }]));
+        }
+
+        if (approvalFilter !== undefined && approvalFilter !== 'true' && approvalFilter !== 'false') {
+            return next(validationError([{ path: "approval", message: "Approval must be true or false." }]));
+        }
+
+        if (isBannedFilter !== undefined && isBannedFilter !== 'true' && isBannedFilter !== 'false') {
+            return next(validationError([{ path: "isBanned", message: "isBanned must be true or false." }]));
+        }
+
+        const validUserTypes = ["student", "professor", "janitor", "admin"]
+        if (userTypeFilter && !validUserTypes.includes(userTypeFilter.toLowerCase())) {
+            return next(validationError([{ path: "userType", message: "Invalid user type. User type must be one of student, professor, janitor, or admin." }]))
+        }
+
+        if (userTypeFilter) {
+            whereClause.userType = userTypeFilter.toLowerCase();
+        }
+
+        if (approvalFilter !== undefined) {
+            whereClause.approval = approvalFilter === 'true';
+        }
+
+        if (isBannedFilter !== undefined) {
+            whereClause.isBanned = isBannedFilter === 'true';
+        }
+
+        // construct the response
+        const users = await User.findAndCountAll({
+            offset,
+            limit: limitNumber,
+            order,
+            where: whereClause
+        });
+
+        const usersList = users.rows.map(user => ({...user.toJSON()}));
+
+        const queryParts = [`page=${pageNumber}`, `limit=${limitNumber}`];
+        if (sort) queryParts.push(`sort=${encodeURIComponent(sort)}`);
+        if (userTypeFilter !== undefined) queryParts.push(`userType=${encodeURIComponent(userTypeFilter)}`);
+        if (approvalFilter !== undefined) queryParts.push(`approval=${encodeURIComponent(approvalFilter)}`);
+        if (isBannedFilter !== undefined) queryParts.push(`isBanned=${encodeURIComponent(isBannedFilter)}`);
+
+        const queryParams = `?${queryParts.join('&')}`;
+        const nextQuery = `?${queryParts.map(part => part.replace(`page=${pageNumber}`, `page=${pageNumber + 1}`)).join('&')}`;
+        const prevQuery = `?${queryParts.map(part => part.replace(`page=${pageNumber}`, `page=${Math.max(pageNumber - 1, 1)}`)).join('&')}`;
+
+        res.status(200).json({
+            data: usersList,
+            page: pageNumber,
+            limit: limitNumber,
+            totalItems: users.count,
+            totalPages: Math.ceil(users.count / limitNumber),
+            links: {
+                next: { href: `/users${nextQuery}` },
+                prev: { href: `/users${prevQuery}` }
+            }
+        });
+
+    } catch (error) {
+        next(genericError("Something went wrong. Please try again later"));
+    }
+}
