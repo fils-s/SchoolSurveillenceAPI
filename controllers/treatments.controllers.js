@@ -130,3 +130,37 @@ export const patchTreatmentById = async(req, res, next)=>{
         next(genericError("Something went wrong. Please try again later"));
     }
 }
+
+export const getTreatmentbyIncident = async(req, res, next)=>{
+    try {
+        const { incidentId } = req.params
+
+        // validate if id is a number
+        if(isNaN(parseInt(incidentId))){
+            return next(validationError([{ path: "id", message: "Incident ID must be a number." }]));
+        }
+
+        // validate if the incident exists
+        const incident = await Incident.findByPk(incidentId)
+        if (!incident) {
+            return next(notFoundError("Incident", incidentId))
+        }
+
+        // validate if the treatment exists
+        const treatment = await Treatment.findOne({ where: { incidentId } })
+        if (!treatment) {
+            return next(notFoundError("Incident", id))
+        }
+
+        res.status(200).json({
+            data: treatment,
+            links: {
+                incident: { href: `/incidents/${incident.id}`},
+                comments: { href: `/incidents/${incident.id}/comments` }
+            }
+        });
+
+    } catch (error) {
+        next(genericError("Something went wrong. Please try again later"));
+    }
+}
