@@ -3,6 +3,10 @@ import jwt from 'jsonwebtoken'
 import { Incident, IncidentStatus, IncidentPhoto, IncCategories, User, Comment, Treatment, Category } from '../models/db.config.js'
 import { missingFieldsValidationError, notFoundError, genericError, validationError, conflictError, forbiddenError, unauthorizedError} from "../utils/error.utils.js";
 
+const photoUrlRegex = /^https?:\/\/[^\s]+\.(jpe?g|png|webp)$/i;
+const isValidPhotoUrl = value => typeof value === "string" && photoUrlRegex.test(value);
+const normalizePhotoArray = photo => Array.isArray(photo) ? photo : [photo];
+
 export const createIncident = async(req, res, next)=>{
     try{
         // body params: title, description, building, coordinates, priority, photo(s), categor(ies)
@@ -47,21 +51,26 @@ export const createIncident = async(req, res, next)=>{
             return next(validationError([{ path: "coordinates", message: "Coordinates must be between 4 and 50 characters long" }]))
         }
 
+        // validate if incident-categories contains valid ids
+        for (const id of incCategoryId) {
+            const existingCategory = await Category.findByPk(id)
+            if(!existingCategory){
+                return next(notFoundError("Category", id))
+            }
+        }
+
         // validate priority value
         const validPriorities = ["low", "medium", "high"]
         if (!validPriorities.includes(priority.toLowerCase())) {
             return next(validationError([{ path: "priority", message: "Invalid priority value. Priority must be either low, medium, or high." }]))
         }
 
-        // validate if photo(s) are valid JPEG, PNG OR WEBP images
-        if (Array.isArray(photo)) {
-            for (const p of photo) {
-                if (!p.match(/^data:image\/(jpeg|jpg|png|webp);base64,/)) {
-                    return next(validationError([{ path: "photo", message: "All photos must be images of one of the following formats: JPEG, PNG or WEBP." }]))
-                }
+        // validate if photo(s) are valid JPEG, PNG OR WEBP image URLs
+        if (photo !== undefined) {
+            const photoValues = normalizePhotoArray(photo);
+            if (!photoValues.every(isValidPhotoUrl)) {
+                return next(validationError([{ path: "photo", message: "Photo(s) must be valid HTTP(S) URLs ending in .jpeg, .jpg, .png or .webp." }]))
             }
-        } else if (photo !== undefined && !photo.match(/^data:image\/(jpeg|jpg|png|webp);base64,/)) {
-            return next(validationError([{ path: "photo", message: "Photo must be an image of one of the following formats: JPEG, PNG or WEBP." }]))
         }
 
         const newIncident = await Incident.create({ 
@@ -74,13 +83,14 @@ export const createIncident = async(req, res, next)=>{
             userId: req.user.id
         });
 
-        // create photo
-        if(photo){
-            for(const p of photo){
-               await IncidentPhoto.create({
-                photo: p,
-                incidentId: newIncident.id
-            }) 
+        // create photo(s)
+        if(photo !== undefined){
+            const photoValues = normalizePhotoArray(photo);
+            for(const p of photoValues){
+                await IncidentPhoto.create({
+                    photo: p,
+                    incidentId: newIncident.id
+                }) 
             }
         }
 
@@ -334,6 +344,11 @@ export const patchIncidentById = async(req, res, next)=>{
             return next(forbiddenError("You are not allowed to do this request"))
         }
 
+        // validate if the incident's creator is authenticated and if the incident's status is in_resolution or solved
+        if(req.user.id === incident.userId && (incident.status === "in_resolution" || incident.status === "solved")){
+            return next(conflictError("You are not allowed to do this request while the incident is in resolution, or after it has been solved."))
+        }
+
         //validate if at least one field was provided
         if (title === undefined 
             && description === undefined 
@@ -370,6 +385,15 @@ export const patchIncidentById = async(req, res, next)=>{
         if (Array.isArray(photo) && !photo.every(p => typeof p === "string")) {
             validationErrors.push({ path: "photo", message: "Photo must be a string." })
         }
+        if (photo !== undefined && !Array.isArray(photo) && typeof photo !== "string") {
+            validationErrors.push({ path: "photo", message: "Photo must be a string." })
+        }
+        if (photo !== undefined) {
+            const photoValues = normalizePhotoArray(photo);
+            if (!photoValues.every(isValidPhotoUrl)) {
+                validationErrors.push({ path: "photo", message: "Photo(s) must be valid HTTP(S) URLs ending in .jpeg, .jpg, .png or .webp." })
+            }
+        }
         if (incCategoryId !== undefined && (!Array.isArray(incCategoryId) || incCategoryId.length === 0)) {
             validationErrors.push({ path: "incCategoryId", message: "You must provide at least one category." })
         }
@@ -398,6 +422,16 @@ export const patchIncidentById = async(req, res, next)=>{
         const validStatuses = ["in_analysis", "unsolved", "in_resolution", "solved", "rejected"]
         if (status && !validStatuses.includes(status.toLowerCase())) {
             return next(validationError([{ path: "status", message: "Invalid status value." }]));
+        }
+
+        // validate if incident-categories contains valid ids
+        if (incCategoryId !== undefined) {
+            for (const categoryId of incCategoryId) {
+                const existingCategory = await Category.findByPk(categoryId)
+                if (!existingCategory) {
+                    return next(notFoundError("Category", categoryId))
+                }
+            }
         }
 
         // admins and janitors can only patch the status of the incident
@@ -431,7 +465,8 @@ export const patchIncidentById = async(req, res, next)=>{
             }
             if (photo !== undefined) {
                 await IncidentPhoto.destroy({ where: { incidentId: id } })
-                for (const p of photo) {
+                const photoValues = normalizePhotoArray(photo);
+                for (const p of photoValues) {
                     await IncidentPhoto.create({
                         photo: p,
                         incidentId: incident.id
@@ -547,7 +582,3 @@ export const getStatistics = async(req, res, next)=>{
     }
 }
 
-
-// to-do tomorrow:
-// - make at the very least 2 of the statistics query params
-// - finish up the documentation with examples for both good and bad requests

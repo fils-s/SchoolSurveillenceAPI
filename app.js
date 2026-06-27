@@ -43,3 +43,12 @@ app.use((err, req, res, next) => {
 app.listen(PORT, HOST, () => {
     console.log(`Server running on http://${HOST}:${PORT}`);
 });
+
+
+
+// coisas para melhorar agora que eu nao me sinto inseguro e tenho nota no projeto (e é boa yayyyyyyy)
+// - fazer a estatística de consulta do histórico de uma ocorrência
+// - se for preciso, dar rework à tabela incident_status, pq eu não sei se aquilo está a guardar direito as coisas necessarias
+// - se uma ocorrência for marcada como Concluída, começar um timer para apagá-la do servidor nas próximas 24 horas
+// - proibir os users de atualizar ocorrências que estejam marcadas como in_resolution ou solved
+// - pôr cloudinary a funcionar
